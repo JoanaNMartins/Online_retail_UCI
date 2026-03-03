@@ -13,7 +13,13 @@ The database diagram planned for the project can be found [here](https://www.dra
 
 ## File Guide
 
-### create_tables.py
-Python script to extract the data from the excel file and organize it into the tables that will be used to build the database. The data here was checked for nulls, data types were casted and other errors were caught.
+### data_processing.py
+Python script to extract the data from the excel file and organize it into the tables that will be used to build the database. The data here was checked for nulls, data types were casted and other errors were caught. Database independent.
 
-WIP: Needs to load the data into the database.
+**Future improvements:** either here or using the full database, one could calculate the first and last date purchased for any client, as well as the total lifetime value of that client and generate a loyalty points system. 
+
+### database.py
+Uses postgreSQL and psycopg2 to manipulate it. Assumes that desired DB was created manually and creates the tables necessary and all the schema and other parameters for further application
+
+### run_etl.py
+File that actually runs everything and loads it into the database.

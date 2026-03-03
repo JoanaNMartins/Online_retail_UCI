@@ -2,7 +2,18 @@
 *.log
 
 # Ignore temp folders
-temp/ 
+temp/
+.vscode/
+.venv/
 
 # Ignore config files
 config.txt
+
+# Ignore __pycache__ folders
+__pycache__/
+
+# SQL Session and History files
+*.sql.bak
+*.sql.tmp
+*.sql.log
+*.session.sql
