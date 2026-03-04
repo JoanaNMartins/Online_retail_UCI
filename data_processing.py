@@ -24,7 +24,7 @@ def calc_line_total(dataFrame):
     dataFrame['line_total'] = dataFrame['Quantity'] * dataFrame['UnitPrice']
 
 def group_information(dataFrame, group_by, column_to_aggregate, new_column_names, 
-                      type_of_aggregations, drop_nulls=False):
+                      type_of_aggregations, drop_nulls=False, replace_nulls=False):
     '''Uses groupby to recover information from a given set of columns in a dataFrame and 
     saves them in a new dataFrame with the new column names 
     groups by the first column in dataFrame \n
@@ -42,6 +42,7 @@ def group_information(dataFrame, group_by, column_to_aggregate, new_column_names
     if drop_nulls == True:
         dataFrame = dataFrame.dropna()
 
+
     for name, aggregation in zip(column_to_aggregate,type_of_aggregations):
         names_dict[name] = aggregation
 
@@ -51,6 +52,10 @@ def group_information(dataFrame, group_by, column_to_aggregate, new_column_names
 
     for old_name, new_name in zip(column_names,new_column_names):   
         grouping.rename(columns = {old_name : new_name}, inplace=True)
+
+    if replace_nulls == True and 'customer_id' in new_column_names:
+        grouping.customer_id = grouping.customer_id.fillna(0)
+        grouping.customer_id = grouping.customer_id.replace({"": 0})
 
     return grouping
 
@@ -173,12 +178,14 @@ def load_data(file_name):
         return None
 
 
-
-if __name__ == '__main__':
+def prepare_all_dataframes(file_name):
+    '''orchestrator that returns all dataframes:
+    - invoices
+    - customers
+    - products
+    - product_sales'''
 
     try:
-        file_name = 'Online Retail.xlsx'
-
         # Load and initial inspection
         online_retail = load_data(file_name)
         if online_retail is None:
@@ -190,63 +197,63 @@ if __name__ == '__main__':
         online_retail = clean_id_column(online_retail, 'InvoiceNo')
         online_retail['Description'] = online_retail['Description'].str.strip().str.upper()
         print("✓ Data cleaned\n")
-
+        
         # Calculation before aggregation 
         calc_line_total(online_retail)
-        
+
         # Create tables for the database
         print("===== CREATING TABLES =====")
 
         # define new column names for the tables to be created
-        invoices_columns = ['invoice_id','invoice_date','customer_id',
+        invoices_columns = ['invoice_no','invoice_date','customer_id',
                             'invoice_total', 'items_total']
         products_columns = ['stock_code','product_description']
         customers_columns = ['customer_id','country','first_purchase_date']
-        product_sales_columns = ['invoice_id','stock_code','product_description','quantity','unit_price']
+        product_sales_columns = ['invoice_no','stock_code','product_description',
+                                'quantity','unit_price', 'line_total']
 
         # Create Tables
         invoices = group_information(online_retail, 'InvoiceNo',
                                     ['InvoiceDate', 'CustomerID', 'line_total','Quantity'],
-                                    invoices_columns, ['first','first','sum','sum'])
+                                    invoices_columns, ['first','first','sum','sum'], replace_nulls=True)
         print(f"✓ Invoices: {len(invoices)} rows")
 
         '''TODO: First purchase date needs to be adapted; what if the client is already 
         in the database?'''
         customers = group_information(online_retail,'CustomerID', 
                                     ['Country', 'InvoiceDate'], customers_columns, 
-                                    ['first','min'], drop_nulls=True)
+                                    ['first','min'], replace_nulls=True)
         print(f"✓ Customers: {len(customers)} rows")
 
         product_sales = select_information(online_retail, 
-                                        ['InvoiceNo','StockCode','Description','Quantity','UnitPrice'],
+                                        ['InvoiceNo','StockCode','Description','Quantity','UnitPrice','line_total'],
                                         product_sales_columns)
         print(f"✓ Product Sales: {len(product_sales)} rows")
-        
+            
         product_sales['sale_id'] = range(1, len(product_sales) + 1)
+        print(product_sales.columns.tolist())
 
         products = group_information(online_retail,'StockCode',
                                     ['Description'],products_columns,
                                     ['first'])
         print(f"✓ Products: {len(products)} rows")
-        
+            
         # Add additional info to tables
         add_return_info(invoices, 'invoice_total')
-
-
 
         # Type Casting Data
         print("===== TYPE CASTING =====")
 
         data_casting(invoices, invoices.columns.tolist(), 
-                    ['int64','datetime64[ns]','str','float64','int64','boolean'])
+                    ['int64','datetime64[ns]','int','float64','int64','boolean'])
         print("✓ Invoices typed")
 
         data_casting(customers, customers.columns.tolist(), 
-                    ['str','str','datetime64[ns]'])
+                    ['int','str','datetime64[ns]'])
         print("✓ Customers typed")
 
         data_casting(product_sales, product_sales.columns.tolist(), 
-                    ['int64','str', 'str', 'int64','float64','int64'])
+                    ['int64','str', 'str', 'int64','float64','float64','int64'])
         print("✓ Product Sales typed")
 
         data_casting(products, products.columns.tolist(),
@@ -256,6 +263,9 @@ if __name__ == '__main__':
         # Remove possible duplicates in products table
         products = products.drop_duplicates(subset=['stock_code'])
         customers = customers.drop_duplicates(subset=['customer_id'])
+        
+        print(f"There are {invoices["invoice_no"].nunique()} unique invoices in invoices")
+        print(f"There are {product_sales["invoice_no"].nunique()} unique invoices in product sales")
 
 
         # Call for each DataFrame
@@ -264,6 +274,9 @@ if __name__ == '__main__':
         validate_data(products, "Products")
         validate_data(customers, "Customers")
         validate_data(product_sales, "Product Sales")
+
+        return {'invoices': invoices, 'customers': customers, 
+            'products': products, 'product_sales': product_sales}
 
     except FileNotFoundError as e:
         print(f"\n✗✗✗ FATAL ERROR: {e}")
@@ -275,6 +288,46 @@ if __name__ == '__main__':
         print("Check data quality and function parameters")
         exit(1)
         
+    except Exception as e:
+        print(f"\n✗✗✗ UNEXPECTED ERROR: {type(e).__name__}")
+        print(f"Message: {e}")
+        import traceback
+        traceback.print_exc()
+        exit(1)
+
+
+if __name__ == '__main__':
+    try:
+        data_file = 'Online Retail.xlsx'
+
+        dataframes = prepare_all_dataframes(data_file)
+
+        invoices = dataframes['invoices']
+        customers = dataframes['customers']
+        products = dataframes['products']
+        product_sales = dataframes['product_sales']
+
+        if invoices is not None and customers is not None and products is not None and product_sales is not None:
+            print("DataFrames loaded successfully.\n")
+            print(f"'invoices': {invoices.shape[0]} rows, {invoices.shape[1]} columns")
+            print(f"'customers': {customers.shape[0]} rows, {customers.shape[1]} columns")
+            print(f"'products': {products.shape[0]} rows, {products.shape[1]} columns")
+            print(f"'product_sales': {product_sales.shape[0]} rows, {product_sales.shape[1]} columns")
+
+            print("\nSample data from 'invoices':")
+            print(invoices.head(50))
+
+        else:
+            raise ValueError("One or more DataFrames failed to load. Please check the data processing step.")
+        
+    except FileNotFoundError as e:
+        print(f"\n✗✗✗ FATAL ERROR: {e}")
+        print("Check that the file path is correct")
+        exit(1)
+    except ValueError as e:
+        print(f"\n✗✗✗ DATA ERROR: {e}")
+        print("Check data quality and function parameters")
+        exit(1)
     except Exception as e:
         print(f"\n✗✗✗ UNEXPECTED ERROR: {type(e).__name__}")
         print(f"Message: {e}")

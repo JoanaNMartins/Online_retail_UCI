@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS public.customers (
 
 CREATE TABLE IF NOT EXISTS public.products (
     stock_code VARCHAR(255) PRIMARY KEY,
-    description VARCHAR(255)
+    product_description VARCHAR(255)
 );
 
 CREATE TABLE IF NOT EXISTS public.invoices (
@@ -20,13 +20,13 @@ CREATE TABLE IF NOT EXISTS public.invoices (
 );
 
 CREATE TABLE IF NOT EXISTS public.product_sales (
+    sale_id INT PRIMARY KEY,
     invoice_no VARCHAR(255),
     stock_code VARCHAR(255),
     product_description VARCHAR(255),
     quantity INT,
     unit_price DECIMAL,
     line_total DECIMAL,
-    PRIMARY KEY (invoice_no, stock_code),
     FOREIGN KEY (invoice_no) REFERENCES public.invoices(invoice_no),
     FOREIGN KEY (stock_code) REFERENCES public.products(stock_code)
 );
@@ -38,3 +38,5 @@ ALTER TABLE public.products OWNER TO postgres;
 ALTER TABLE public.product_sales OWNER TO postgres;
 
 CREATE INDEX idx_customer_id ON public.invoices(customer_id);
+CREATE INDEX idx_stock_code ON public.product_sales(stock_code);
+CREATE INDEX idx_invoice_no ON public.product_sales(invoice_no);
