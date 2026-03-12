@@ -6,7 +6,9 @@ import psycopg2
 def calc_line_total(dataFrame):
     '''calculates the line total in this type of invoice info
     adds new column directly to the dataFrame
-    - can be mouldable for differently named columns'''
+    - currently assumes the columns are named 'UnitPrice' and 'Quantity'
+    - can be mouldable for differently named columns if different
+    inputs are expected in the future'''
 
     # Validate required columns
     if 'UnitPrice' not in dataFrame.columns:
@@ -15,10 +17,10 @@ def calc_line_total(dataFrame):
         raise KeyError("Column 'Quantity' not found in DataFrame")
     
     # Check for nulls and warn
-    null_count = (dataFrame['UnitPrice'].isnull() | dataFrame['Quantity'].isnull()).sum()
+    null_count = dataFrame[['UnitPrice', 'Quantity']].isnull().any(axis=1).sum()
     if null_count > 0:
         print(f"⚠ Warning: {null_count} rows have null UnitPrice or Quantity")
-        print(f"  line_total will be null for these rows")
+        print(f"  line_total will be null for these rows\n")
     
     # Calculate (nulls will naturally propagate)
     dataFrame['line_total'] = dataFrame['Quantity'] * dataFrame['UnitPrice']
@@ -28,12 +30,14 @@ def group_information(dataFrame, group_by, column_to_aggregate, new_column_names
     '''Uses groupby to recover information from a given set of columns in a dataFrame and 
     saves them in a new dataFrame with the new column names 
     groups by the first column in dataFrame \n
-    drop_nulls = True => Drops nulls for new tables that should not have them (e.g. customers)'''
+    drop_nulls = True => Drops nulls for new tables that should not have them (e.g. customers)
+    replace_nulls = True => Replaces nulls with 0 for new tables that should not have them 
+    (e.g. currently checking in customers only)'''
 
     names_dict = {}
 
     if len(column_to_aggregate) != len(new_column_names) - 1:
-        raise ValueError("Column to aggregate should have + 1 length than" + 
+        raise ValueError("Column to aggregate should have - 1 length than" + 
                          "\n new names lists (because of the group by column)")
     if len(column_to_aggregate) != len(type_of_aggregations):
         raise ValueError("Column to aggregate and type of aggregations lists must be same length")
@@ -41,6 +45,10 @@ def group_information(dataFrame, group_by, column_to_aggregate, new_column_names
     # pôr o id de guest em vez de null nos customers 
     if drop_nulls == True:
         dataFrame = dataFrame.dropna()
+
+    if replace_nulls == True and 'CustomerID' in column_to_aggregate:
+        dataFrame.CustomerID = dataFrame.CustomerID.fillna(0)
+        dataFrame.CustomerID = dataFrame.CustomerID.replace({"": 0})
 
 
     for name, aggregation in zip(column_to_aggregate,type_of_aggregations):
@@ -53,14 +61,15 @@ def group_information(dataFrame, group_by, column_to_aggregate, new_column_names
     for old_name, new_name in zip(column_names,new_column_names):   
         grouping.rename(columns = {old_name : new_name}, inplace=True)
 
-    if replace_nulls == True and 'customer_id' in new_column_names:
-        grouping.customer_id = grouping.customer_id.fillna(0)
-        grouping.customer_id = grouping.customer_id.replace({"": 0})
 
     return grouping
 
 def clean_id_column(dataFrame, id_column):
-    '''removes the 'C' and 'A' prefixes from ID column'''
+    '''removes the 'C' and 'A' prefixes from ID column
+    TODO: This function is currently designed for the 'InvoiceNo' column, 
+    but it can be adapted to other ID columns if needed. Additionally,
+    it currently only checks for 'C' and 'A' prefixes, but it can be extended 
+    to check for other prefixes using regex.'''
     
     if id_column not in dataFrame.columns:
         raise ValueError(f"Column '{id_column}' not found")
@@ -215,14 +224,14 @@ def prepare_all_dataframes(file_name):
         # Create Tables
         invoices = group_information(online_retail, 'InvoiceNo',
                                     ['InvoiceDate', 'CustomerID', 'line_total','Quantity'],
-                                    invoices_columns, ['first','first','sum','sum'], replace_nulls=True)
+                                    invoices_columns, ['first','first','sum','sum'])
         print(f"✓ Invoices: {len(invoices)} rows")
 
         '''TODO: First purchase date needs to be adapted; what if the client is already 
         in the database?'''
         customers = group_information(online_retail,'CustomerID', 
                                     ['Country', 'InvoiceDate'], customers_columns, 
-                                    ['first','min'], replace_nulls=True)
+                                    ['first','min'], drop_nulls=True)
         print(f"✓ Customers: {len(customers)} rows")
 
         product_sales = select_information(online_retail, 
@@ -314,8 +323,8 @@ if __name__ == '__main__':
             print(f"'products': {products.shape[0]} rows, {products.shape[1]} columns")
             print(f"'product_sales': {product_sales.shape[0]} rows, {product_sales.shape[1]} columns")
 
-            print("\nSample data from 'invoices':")
-            print(invoices.head(50))
+            print("\nSample data from 'customers':")
+            print(customers.head(50))
 
         else:
             raise ValueError("One or more DataFrames failed to load. Please check the data processing step.")

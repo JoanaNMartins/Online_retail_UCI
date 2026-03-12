@@ -1,5 +1,3 @@
-from turtle import pos
-
 import pandas as pd
 import psycopg2
 from io import StringIO
@@ -217,24 +215,33 @@ def insert_all_dataframes(dataFrames, conn, table_names: list):
         print(f"An error occurred while inserting data: {e}")
         raise
 
-'''
-def test_stringio():
-    # Test function to demonstrate how to use StringIO to insert a DataFrame into a database.
-    data = {
-        'id': [1, 2, 3],
-        'name': ['Alice', 'Bob', 'Charlie'],
-        'age': [25, 30, 35]
-    }
-    df = pd.DataFrame(data)
-    csv_buffer = StringIO()
-    df.to_csv(csv_buffer, index=False)
-    csv_buffer.seek(0)  # Move the buffer's cursor to the beginning
-    print(csv_buffer.getvalue())  # Print the CSV string
-'''
+def validate_data_loaded(list_of_dataFrames, conn, table_names):
+    '''Validates that the data was loaded correctly by comparing row counts.
+    TODO: Extend this function to compare sample data from the DataFrames with the database
+    and check for duplicates and nulls in the database.'''
+    
+    cursor = None
+    try:
+        cursor = conn.cursor()
 
-def validate_data_loaded():
-    '''Validates that the data was loaded correctly by comparing row counts or checksums.'''
-    pass
+        for df, table in zip(list_of_dataFrames, table_names):
+            cursor.execute(f"SELECT COUNT(*) FROM {table};")
+            db_count = cursor.fetchone()[0]
+            df_count = len(df)
+
+            if db_count == df_count:
+                print(f"✓ Validation passed for '{table}': {db_count} rows in database," +
+                      f" {df_count} rows in DataFrame.")
+            else:
+                print(f"✗ Validation failed for '{table}': {db_count} rows in database," +
+                      f" {df_count} rows in DataFrame.")
+                raise ValueError(f"Row count mismatch for table '{table}'")
+    except ValueError as e:
+        print(f"Validation error: {e}")
+        conn.rollback()
+    finally:
+        if cursor is not None:
+            cursor.close()
 
 def drop_tables(conn, table_names):
     '''Drops the specified tables from the database.'''
@@ -261,6 +268,7 @@ def drop_tables(conn, table_names):
 
 
 
+
 if __name__ == "__main__":
 
     config_file = 'config.txt'
@@ -271,13 +279,18 @@ if __name__ == "__main__":
         print(f"Connection details: {connection_details}\n")
         conn = connect_to_database(connection_details)
 
-        drop_tables(conn, ['product_sales', 'invoices', 'customers', 'products'])
+        # They have to be added in the right order to avoid foreign key constraint
+        # errors when dropping and creating tables
+        table_names = ['customers', 'products','invoices','product_sales']
+
+        drop_tables(conn, table_names)
         create_tables(conn, 'sql/create_tables.sql')
         
         # get table names and column names for validation and 
         # loading data from DF into the tables
-        table_names = get_table_names(conn)
-        print(f"Tables in the database: {table_names}\n")
+        
+        print(f"Tables in the database: {get_table_names(conn)}\n")
+        print(f"Tables inserted: {table_names}\n")
 
         for table in table_names:
             column_names = get_column_names(conn, table)
