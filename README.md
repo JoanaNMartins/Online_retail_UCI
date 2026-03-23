@@ -5,11 +5,27 @@ Small project to create ETL processes using PostgreSQL, Python and dashboards us
 
 Turning simple invoice information into key business information, organizing this information into an organized relational database, following basic design principles. This project is thought out to include the possibility to expand the information present and allow for scalability in the future. Primary keys were attributed according to the codes already established, in order to allow easier transferability between recovered excel records and final analysis.
 
+**Mission statement:** Online retail database is used to maintain generated data and provide information to support business decisions in order to improve the service provided to the clients and overall management of the business on client, product and sales information. 
+
+**Mission objectives:**
+* 
+
 ## Raw Data used
 The link to the data used can be found [here](https://archive.ics.uci.edu/dataset/352/online+retail) along with additional information.
 
 ## Database Diagram
 The database diagram planned for the project can be found [here](https://www.drawdb.app/editor?shareId=71857eb61c1bc3b1560033eddf2edc17).
+
+### Operation types (Ongoing):
+* **Returns:** marked with a C before start of invoice number were considered returns
+* **Adjustments:** marked with A before start of invoice number or marked as manual adjustments to the invoice list 
+* **Sale:** quantity and line total are higher than zero  
+* **Stock breakage:** quantity < 0 and invoice total at 0
+* **Stock addition:** quantity > 0 and invoice total at 0
+* **Price adjustment:** discounts or promotions added after the fact as separate invoices
+* **Charges:** unexpected charges, added as invoices (sometimes with C before start of invoice)
+
+
 
 ## File Guide
 
@@ -20,6 +36,8 @@ Python script to extract the data from the excel file and organize it into the t
 
 ### database.py
 Uses postgreSQL and psycopg2 to manipulate it. Assumes that desired DB was created manually and creates the tables necessary and all the schema and other parameters for further application
+
+
 
 ### run_etl.py
 File that actually runs everything and loads it into the database.

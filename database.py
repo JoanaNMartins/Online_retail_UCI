@@ -116,7 +116,7 @@ def truncate_tables(conn, table_names):
         print("\n✓ All tables truncated successfully.")
 
     except Exception as e:
-        print(f"An error occurred while truncating tables: {e}")
+        print(f"\n✗ An error occurred while truncating tables: {e}")
         conn.rollback()
 
     finally:
@@ -215,7 +215,7 @@ def insert_all_dataframes(dataFrames, conn, table_names: list):
         print(f"An error occurred while inserting data: {e}")
         raise
 
-def validate_data_loaded(list_of_dataFrames, conn, table_names):
+def validate_data_loaded(list_of_dataFrames: dict, conn):
     '''Validates that the data was loaded correctly by comparing row counts.
     TODO: Extend this function to compare sample data from the DataFrames with the database
     and check for duplicates and nulls in the database.'''
@@ -224,21 +224,22 @@ def validate_data_loaded(list_of_dataFrames, conn, table_names):
     try:
         cursor = conn.cursor()
 
-        for df, table in zip(list_of_dataFrames, table_names):
-            cursor.execute(f"SELECT COUNT(*) FROM {table};")
+        for table_name, df in list_of_dataFrames.items():
+            cursor.execute(f"SELECT COUNT(*) FROM {table_name};")
             db_count = cursor.fetchone()[0]
-            df_count = len(df)
+            df_count = df.shape[0]
 
             if db_count == df_count:
-                print(f"✓ Validation passed for '{table}': {db_count} rows in database," +
+                print(f"✓ Validation passed for '{table_name}': {db_count} rows in database," +
                       f" {df_count} rows in DataFrame.")
             else:
-                print(f"✗ Validation failed for '{table}': {db_count} rows in database," +
+                print(f"✗ Validation failed for '{table_name}': {db_count} rows in database," +
                       f" {df_count} rows in DataFrame.")
-                raise ValueError(f"Row count mismatch for table '{table}'")
+                raise ValueError(f"Row count mismatch for table '{table_name}'")
     except ValueError as e:
         print(f"Validation error: {e}")
         conn.rollback()
+        raise
     finally:
         if cursor is not None:
             cursor.close()

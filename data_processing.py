@@ -108,14 +108,26 @@ def clean_id_column(dataFrame, id_column):
     
     return dataFrame
 
-def add_return_info(dataFrame, total_column):
-    '''Adds a boolean column to the invoices table indicating if the invoice is a return or not'''
+def operation_type(value):
+    value = str(value)
+    if value.startswith('A'):
+        return 'other'
+    elif value.startswith('C'):
+        return 'return'
+    else:
+        return 'sale'
+
+def add_operation_type(dataFrame, id_column):
+    '''Adds a str column to the invoices table indicating if the invoice is a sale
+    , a return or other operations'''
     
-    if total_column not in dataFrame.columns:
-        raise ValueError(f"Column '{total_column}' not found in DataFrame")
+    if id_column not in dataFrame.columns:
+        raise ValueError(f"Column '{id_column}' not found in DataFrame")
     
-    dataFrame['is_return'] = dataFrame[total_column] < 0
-    print(f"✓ Added 'is_return' column based on '{total_column}'\n")
+    dataFrame['operation_type'] = dataFrame[id_column].apply(operation_type)
+    print(f"✓ Added 'operation_type' column based on '{id_column}'\n")
+
+
 
 def data_casting(dataFrame, column_name, new_type):
     '''casts a column to a new type, if possible'''
@@ -203,7 +215,6 @@ def prepare_all_dataframes(file_name):
 
         # Clean Data
         print("\n===== CLEANING DATA =====")
-        online_retail = clean_id_column(online_retail, 'InvoiceNo')
         online_retail['Description'] = online_retail['Description'].str.strip().str.upper()
         print("✓ Data cleaned\n")
         
@@ -218,7 +229,7 @@ def prepare_all_dataframes(file_name):
                             'invoice_total', 'items_total']
         products_columns = ['stock_code','product_description']
         customers_columns = ['customer_id','country','first_purchase_date']
-        product_sales_columns = ['invoice_no','stock_code','product_description',
+        product_sales_columns = ['invoice_no','stock_code',
                                 'quantity','unit_price', 'line_total']
 
         # Create Tables
@@ -234,27 +245,31 @@ def prepare_all_dataframes(file_name):
                                     ['first','min'], drop_nulls=True)
         print(f"✓ Customers: {len(customers)} rows")
 
+
+        products = group_information(online_retail,'StockCode',
+                                    ['Description'],products_columns,
+                                    ['first'])
+        print(f"✓ Products: {len(products)} rows")
+
         product_sales = select_information(online_retail, 
-                                        ['InvoiceNo','StockCode','Description','Quantity','UnitPrice','line_total'],
+                                        ['InvoiceNo','StockCode','Quantity','UnitPrice','line_total'],
                                         product_sales_columns)
         print(f"✓ Product Sales: {len(product_sales)} rows")
             
         product_sales['sale_id'] = range(1, len(product_sales) + 1)
         print(product_sales.columns.tolist())
 
-        products = group_information(online_retail,'StockCode',
-                                    ['Description'],products_columns,
-                                    ['first'])
-        print(f"✓ Products: {len(products)} rows")
             
         # Add additional info to tables
-        add_return_info(invoices, 'invoice_total')
+        add_operation_type(invoices,'invoice_no')
+        invoices = clean_id_column(invoices, 'invoice_no')
+        product_sales = clean_id_column(product_sales,'invoice_no')
 
         # Type Casting Data
         print("===== TYPE CASTING =====")
 
         data_casting(invoices, invoices.columns.tolist(), 
-                    ['int64','datetime64[ns]','int','float64','int64','boolean'])
+                    ['int64','datetime64[ns]','int','float64','int64','str'])
         print("✓ Invoices typed")
 
         data_casting(customers, customers.columns.tolist(), 
@@ -262,7 +277,7 @@ def prepare_all_dataframes(file_name):
         print("✓ Customers typed")
 
         data_casting(product_sales, product_sales.columns.tolist(), 
-                    ['int64','str', 'str', 'int64','float64','float64','int64'])
+                    ['int64','str', 'int64','float64','float64','int64'])
         print("✓ Product Sales typed")
 
         data_casting(products, products.columns.tolist(),
@@ -324,7 +339,7 @@ if __name__ == '__main__':
             print(f"'product_sales': {product_sales.shape[0]} rows, {product_sales.shape[1]} columns")
 
             print("\nSample data from 'customers':")
-            print(customers.head(50))
+            print(invoices.head(50))
 
         else:
             raise ValueError("One or more DataFrames failed to load. Please check the data processing step.")
