@@ -108,24 +108,43 @@ def clean_id_column(dataFrame, id_column):
     
     return dataFrame
 
-def operation_type(value):
-    value = str(value)
-    if value.startswith('A'):
-        return 'other'
-    elif value.startswith('C'):
-        return 'return'
-    else:
-        return 'sale'
+def get_operation_type(row):
+    '''Sets the operation type based on information given in a dataFrame. Made
+    for the apply method. Uses the original dataframe'''
+    quantity = row["Quantity"]
+    unit_price = row["UnitPrice"]
+    invoice = str(row["InvoiceNo"])
+    description = str(row["Description"])
 
-def add_operation_type(dataFrame, id_column):
-    '''Adds a str column to the invoices table indicating if the invoice is a sale
-    , a return or other operations'''
+
+
+    if invoice.startswith('A') or 'adjust' in description.lower() or 'manual' in description.lower():
+        return 'Adjustment'
     
-    if id_column not in dataFrame.columns:
-        raise ValueError(f"Column '{id_column}' not found in DataFrame")
+    elif invoice.startswith('C'):
+        if 'charge' in description.lower():
+            return 'Charge'
+        elif 'discount' in description.lower():
+            return 'Discount'
+        else:
+            return 'Return'
+        
+    elif quantity < 0 and unit_price == 0:
+        if 'damage' in description.lower():
+            return 'Damages'
+        elif 'sample' in description.lower():
+            return 'Sample'
+        else:
+            return 'Loss'
     
-    dataFrame['operation_type'] = dataFrame[id_column].apply(operation_type)
-    print(f"✓ Added 'operation_type' column based on '{id_column}'\n")
+    elif unit_price > 0 and quantity > 0:
+        if 'postage' in description.lower():
+            return 'Shipping'
+        else:
+            return 'Sale'
+    
+    else:
+        return 'Other'
 
 
 
@@ -216,6 +235,9 @@ def prepare_all_dataframes(file_name):
         # Clean Data
         print("\n===== CLEANING DATA =====")
         online_retail['Description'] = online_retail['Description'].str.strip().str.upper()
+        online_retail['operation_type'] = online_retail.apply(get_operation_type, axis=1)
+        print(f"✓ Added 'operation_type' column based on '{online_retail} information'\n")
+
         print("✓ Data cleaned\n")
         
         # Calculation before aggregation 
@@ -230,7 +252,7 @@ def prepare_all_dataframes(file_name):
         products_columns = ['stock_code','product_description']
         customers_columns = ['customer_id','country','first_purchase_date']
         product_sales_columns = ['invoice_no','stock_code',
-                                'quantity','unit_price', 'line_total']
+                                'quantity','unit_price', 'line_total','operation_type']
 
         # Create Tables
         invoices = group_information(online_retail, 'InvoiceNo',
@@ -252,7 +274,7 @@ def prepare_all_dataframes(file_name):
         print(f"✓ Products: {len(products)} rows")
 
         product_sales = select_information(online_retail, 
-                                        ['InvoiceNo','StockCode','Quantity','UnitPrice','line_total'],
+                                        ['InvoiceNo','StockCode','Quantity','UnitPrice','line_total', 'operation_type'],
                                         product_sales_columns)
         print(f"✓ Product Sales: {len(product_sales)} rows")
             
@@ -261,7 +283,6 @@ def prepare_all_dataframes(file_name):
 
             
         # Add additional info to tables
-        add_operation_type(invoices,'invoice_no')
         invoices = clean_id_column(invoices, 'invoice_no')
         product_sales = clean_id_column(product_sales,'invoice_no')
 
@@ -269,7 +290,7 @@ def prepare_all_dataframes(file_name):
         print("===== TYPE CASTING =====")
 
         data_casting(invoices, invoices.columns.tolist(), 
-                    ['int64','datetime64[ns]','int','float64','int64','str'])
+                    ['int64','datetime64[ns]','int','float64','int64'])
         print("✓ Invoices typed")
 
         data_casting(customers, customers.columns.tolist(), 
@@ -277,7 +298,7 @@ def prepare_all_dataframes(file_name):
         print("✓ Customers typed")
 
         data_casting(product_sales, product_sales.columns.tolist(), 
-                    ['int64','str', 'int64','float64','float64','int64'])
+                    ['int64','str', 'int64','float64','float64','str','int64'])
         print("✓ Product Sales typed")
 
         data_casting(products, products.columns.tolist(),

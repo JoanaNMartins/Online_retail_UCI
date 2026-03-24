@@ -10,22 +10,22 @@ CREATE TABLE IF NOT EXISTS public.products (
 );
 
 CREATE TABLE IF NOT EXISTS public.invoices (
-    invoice_no VARCHAR(255) PRIMARY KEY,
+    invoice_no INT PRIMARY KEY,
     invoice_date TIMESTAMP,
     customer_id INT NULL,
     invoice_total DECIMAL(10, 2),
-    operation_type VARCHAR(6),
     items_total INT,
     FOREIGN KEY (customer_id) REFERENCES public.customers(customer_id)
 );
 
 CREATE TABLE IF NOT EXISTS public.product_sales (
     sale_id INT PRIMARY KEY,
-    invoice_no VARCHAR(255),
+    invoice_no INT,
     stock_code VARCHAR(255),
     quantity INT,
     unit_price DECIMAL(10, 2),
     line_total DECIMAL(10, 2),
+    operation_type VARCHAR(20),
     FOREIGN KEY (invoice_no) REFERENCES public.invoices(invoice_no),
     FOREIGN KEY (stock_code) REFERENCES public.products(stock_code)
 );

@@ -16,17 +16,6 @@ The link to the data used can be found [here](https://archive.ics.uci.edu/datase
 ## Database Diagram
 The database diagram planned for the project can be found [here](https://www.drawdb.app/editor?shareId=71857eb61c1bc3b1560033eddf2edc17).
 
-### Operation types (Ongoing):
-* **Returns:** marked with a C before start of invoice number were considered returns
-* **Adjustments:** marked with A before start of invoice number or marked as manual adjustments to the invoice list 
-* **Sale:** quantity and line total are higher than zero  
-* **Stock breakage:** quantity < 0 and invoice total at 0
-* **Stock addition:** quantity > 0 and invoice total at 0
-* **Price adjustment:** discounts or promotions added after the fact as separate invoices
-* **Charges:** unexpected charges, added as invoices (sometimes with C before start of invoice)
-
-
-
 ## File Guide
 
 ### data_processing.py
